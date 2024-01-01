@@ -1,12 +1,8 @@
-import java.util.Arrays;
-
-/**
- * @author Yalesan Thayalan {@literal <yalesan2006@outlook.com>}
- */
 public class Fluid {
-	public static final int WIDTH = 160;
-	public static final int HEIGHT = 160;
+	public static final int WIDTH = 120;
+	public static final int HEIGHT = 100;
 	private static final int ITERATIONS = 4;
+	public static final double OVERRELAXATION = 1.5;
 	public double[] dens, u, v;
 	public double diffusionRate, viscosity;
 	double dt; // change to deltaTime soon
@@ -21,10 +17,10 @@ public class Fluid {
 		dens = new double[size];
 		u = new double[size];
 		v = new double[size];
-		
+
 		for (int i = 0; i < WIDTH + 1; i++) {
 			for (int j = 0; j < HEIGHT + 1; j++) {
-				this.dens[index(i, j)] = 1;
+				this.dens[index(i, j)] = 0;
 				this.u[index(i, j)] = 0;
 				this.v[index(i, j)] = 0;
 			}
@@ -119,13 +115,12 @@ public class Fluid {
 		}
 		setBoundary(0, divergenceField);
 		setBoundary(0, p);
-
 		gaussSeidel(0, p, divergenceField, 1, 4);
 
 		for (int i = 1; i < WIDTH + 1; i++) {
 			for (int j = 1; j < HEIGHT + 1; j++) {
-				u[index(i, j)] -= 0.5 * (p[index(i + 1, j)] - p[index(i - 1, j)]) / h;
-				v[index(i, j)] -= 0.5 * (p[index(i, j + 1)] - p[index(i, j - 1)]) / h;
+				u[index(i, j)] -= OVERRELAXATION * 0.5 * (p[index(i + 1, j)] - p[index(i - 1, j)]) / h;
+				v[index(i, j)] -= OVERRELAXATION * 0.5 * (p[index(i, j + 1)] - p[index(i, j - 1)]) / h;
 			}
 		}
 		//potentially need to change this
@@ -148,12 +143,11 @@ public class Fluid {
 
 	public static void setBoundary(int b, double[] destination) {
 		// make a global factor for -1 or 1
-		for (int i = 0; i < WIDTH + 1; i++) {
-			if (i <= HEIGHT) {
-				destination[index(0, i)] = (b == 1) ? -1 * destination[index(1, i)] : destination[index(1, i)];
-				destination[index(WIDTH + 1, i)] =
-						(b == 1) ? -1 * destination[index(WIDTH, i)] : destination[index(WIDTH, i)];
-			}
+		for (int i = 1; i < WIDTH + 1; i++) {
+			destination[index(0, i)] = (b == 1) ? -1 * destination[index(1, i)] : destination[index(1, i)];
+			destination[index(WIDTH + 1, i)] =
+					(b == 1) ? -1 * destination[index(WIDTH, i)] : destination[index(WIDTH, i)];
+
 			destination[index(i, 0)] = (b == 2) ? -1 * destination[index(i, 1)] : destination[index(i, 1)];
 			destination[index(i, HEIGHT + 1)] =
 					(b == 2) ? -1 * destination[index(i, HEIGHT)] : destination[index(i, HEIGHT)];
@@ -166,6 +160,18 @@ public class Fluid {
 	}
 
 	public static int index(int i, int j) {
+		if (i < 0) {
+			i = 0;
+		}
+		if (i > WIDTH + 1) {
+			i = WIDTH + 1;
+		}
+		if (j < 0) {
+			j = 0;
+		}
+		if (j > HEIGHT + 1) {
+			j = HEIGHT + 1;
+		}
 		return (i + j * (HEIGHT + 2));
 	}
 }

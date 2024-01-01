@@ -1,6 +1,7 @@
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 public class FluidSimulation extends JComponent implements Runnable {
@@ -12,18 +13,27 @@ public class FluidSimulation extends JComponent implements Runnable {
 	MouseHandler mouseHandler;
 	Fluid fluid;
 	double[] dens_prev, u_prev, v_prev;
+	int nColors = 600;
+	int[] colorInt = new int[nColors];
 
 	public FluidSimulation() {
 		mouseHandler = new MouseHandler();
-		fluid = new Fluid(1, 1);
+
+		for (int c = 0; c < nColors; c++) {
+			double h = (2.0 / 3) * (1 - c * 1.0 / nColors);
+			h += 0.03 * Math.sin(6 * Math.PI * h);
+			colorInt[c] = Color.HSBtoRGB((float) h, (float) 1, (float) 1);
+		}
+
+		fluid = new Fluid(4, 4);
 
 		int size = (Fluid.WIDTH + 2) * (Fluid.HEIGHT + 2);
 		dens_prev = new double[size];
 		u_prev = new double[size];
 		v_prev = new double[size];
 
-		bufferedImage = new BufferedImage(Fluid.WIDTH * PPGS, Fluid.HEIGHT * FluidSimulation.PPGS,
-				BufferedImage.TYPE_INT_RGB);
+		bufferedImage =
+				new BufferedImage(Fluid.WIDTH * PPGS, Fluid.HEIGHT * FluidSimulation.PPGS, BufferedImage.TYPE_INT_RGB);
 
 		createFrame();
 	}
@@ -94,10 +104,10 @@ public class FluidSimulation extends JComponent implements Runnable {
 
 	public void update(double deltaTime) {
 		if (mouseHandler.mouseDragged) {
-			addDensity(mouseHandler.x/ PPGS, mouseHandler.y/ PPGS, 1);
+			addDensity(mouseHandler.x, mouseHandler.y, 10);
 			double amountX = mouseHandler.x - mouseHandler.px;
 			double amountY = mouseHandler.y - mouseHandler.py;
-			addVelocity(mouseHandler.x/PPGS, mouseHandler.y/PPGS, amountX, amountY);
+			addVelocity(mouseHandler.x, mouseHandler.y, amountX, amountY);
 		}
 		fluid.step(dens_prev, u_prev, v_prev, deltaTime);
 	}
@@ -116,7 +126,15 @@ public class FluidSimulation extends JComponent implements Runnable {
 		for (int i = 0; i < Fluid.WIDTH; i++) {
 			for (int j = 0; j < Fluid.HEIGHT; j++) {
 				double currentDensity = fluid.dens[Fluid.index(i, j)];
-
+				//
+				//				colorIndex = (int) (nColors * (currentDensity * 20 * 0.3));
+				//				System.out.println(currentDensity);
+				//				if (colorIndex < 0) {
+				//					colorIndex = 0;
+				//				}
+				//				if (colorIndex >= nColors) {
+				//					colorIndex = nColors - 1;
+				//				}
 				colorIndex = Color.HSBtoRGB((float) 0, (float) 0, (float) currentDensity);
 				colorCell(i, j, colorIndex);
 			}
@@ -145,10 +163,4 @@ public class FluidSimulation extends JComponent implements Runnable {
 	}
 }
 
-//				colorIndex = (int) (nColors * ((dens[index(i, j)]) * 20 * 0.3));
-//				if (colorIndex < 0) {
-//					colorIndex = 0;
-//				}
-//				if (colorIndex >= nColors) {
-//					colorIndex = nColors - 1;
-//				}
+

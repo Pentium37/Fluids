@@ -25,6 +25,8 @@ public class MouseHandler implements MouseMotionListener {
 
 			x = a;
 			y = b;
+		} else {
+			mouseDragged = false;
 		}
 	}
 
