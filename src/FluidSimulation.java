@@ -1,68 +1,33 @@
-import javax.swing.*;
-import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
-public class FluidSimulation extends JComponent implements Runnable {
-	public static final int PPGS = 3;
+public class FluidSimulation implements Runnable, DataProvider {
+	public static final int CELL_LENGTH = 5;
 	public static final double FPS = 60, TPS = 60;
-	public BufferedImage bufferedImage;
-	public JFrame frame;
 	Thread simulationThread;
-	MouseHandler mouseHandler;
 	Fluid fluid;
-	double[] dens_prev, u_prev, v_prev;
-	int nColors = 600;
-	int[] colorInt = new int[nColors];
+	ApplicationWindow window;
+
+	public final int IMAGE_WIDTH = Fluid.WIDTH * CELL_LENGTH;
+	public final int IMAGE_HEIGHT = Fluid.HEIGHT * CELL_LENGTH;
+
+	public double[] u0, v0, d0;
+	private final MouseAdapter mouseAdapter;
 
 	public FluidSimulation() {
-		mouseHandler = new MouseHandler();
-
-		for (int c = 0; c < nColors; c++) {
-			double h = (2.0 / 3) * (1 - c * 1.0 / nColors);
-			h += 0.03 * Math.sin(6 * Math.PI * h);
-			colorInt[c] = Color.HSBtoRGB((float) h, (float) 1, (float) 1);
-		}
-
-		fluid = new Fluid(4, 4);
+		fluid = new Fluid(2,2);
+		mouseAdapter = new MouseAdapter();
+		window = new ApplicationWindow(IMAGE_WIDTH, IMAGE_HEIGHT);
+		window.addMouseListener(mouseAdapter);
+		window.addMouseMotionListener(mouseAdapter);
 
 		int size = (Fluid.WIDTH + 2) * (Fluid.HEIGHT + 2);
-		dens_prev = new double[size];
-		u_prev = new double[size];
-		v_prev = new double[size];
-
-		bufferedImage =
-				new BufferedImage(Fluid.WIDTH * PPGS, Fluid.HEIGHT * FluidSimulation.PPGS, BufferedImage.TYPE_INT_RGB);
-
-		createFrame();
+		u0 = new double[size];
+		v0 = new double[size];
+		d0 = new double[size];
 	}
 
 	public void startSimulation() {
 		startSimulationThread();
-	}
-
-	private void createFrame() {
-		frame = new JFrame("Fluids Through a tunnel");
-
-		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		frame.setResizable(true);
-		frame.getContentPane()
-				.add(this);
-		frame.pack();
-		frame.setVisible(true);
-		this.frame.addMouseMotionListener(mouseHandler);
-		this.setFocusable(true);
-	}
-
-	@Override
-	public void addNotify() {
-		setPreferredSize(new Dimension(Fluid.WIDTH * PPGS, Fluid.HEIGHT * PPGS));
-	}
-
-	@Override
-	public void paint(Graphics g) {
-		g.drawImage(bufferedImage, 0, 0, null);
 	}
 
 	public void startSimulationThread() {
@@ -103,46 +68,34 @@ public class FluidSimulation extends JComponent implements Runnable {
 	}
 
 	public void update(double deltaTime) {
-		if (mouseHandler.mouseDragged) {
-			addDensity(mouseHandler.x, mouseHandler.y, 10);
-			double amountX = mouseHandler.x - mouseHandler.px;
-			double amountY = mouseHandler.y - mouseHandler.py;
-			addVelocity(mouseHandler.x, mouseHandler.y, amountX, amountY);
-		}
-		fluid.step(dens_prev, u_prev, v_prev, deltaTime);
+		addSourcesFromUI();
+		fluid.step(deltaTime, u0, v0, d0);
 	}
 
-	public void addDensity(int i, int j, double amount) {
-		dens_prev[Fluid.index(i, j)] += amount;
+	public void addSourcesFromUI() {
+		mouseAdapter.consumeSources(fluidInput -> {
+			fluid.u[Fluid.index(fluidInput.x, fluidInput.y)] += fluidInput.forceX;
+			fluid.v[Fluid.index(fluidInput.x, fluidInput.y)] += fluidInput.forceY;
+			fluid.u[Fluid.index(fluidInput.x + 1, fluidInput.y)] += fluidInput.forceX;
+			fluid.v[Fluid.index(fluidInput.x + 1, fluidInput.y)] += fluidInput.forceY;
+			fluid.u[Fluid.index(fluidInput.x - 1, fluidInput.y)] += fluidInput.forceX;
+			fluid.v[Fluid.index(fluidInput.x - 1, fluidInput.y)] += fluidInput.forceY;
+			fluid.u[Fluid.index(fluidInput.x, fluidInput.y + 1)] += fluidInput.forceX;
+			fluid.v[Fluid.index(fluidInput.x, fluidInput.y + 1)] += fluidInput.forceY;
+			fluid.u[Fluid.index(fluidInput.x, fluidInput.y - 1)] += fluidInput.forceX;
+			fluid.v[Fluid.index(fluidInput.x, fluidInput.y - 1)] += fluidInput.forceY;
+			fluid.dens[Fluid.index(fluidInput.x, fluidInput.y)] += fluidInput.density;
+		});
 	}
 
-	public void addVelocity(int i, int j, double amountX, double amountY) {
-		u_prev[Fluid.index(i, j)] += amountX;
-		v_prev[Fluid.index(i, j)] += amountY;
+	@Override
+	public byte provideData(final int x, final int y) {
+		double num = fluid.dens[Fluid.index(x / CELL_LENGTH, y / CELL_LENGTH)];
+		return (byte) ((num > 255) ? 255 : num);
 	}
 
 	public void render() {
-		int colorIndex;
-		for (int i = 0; i < Fluid.WIDTH; i++) {
-			for (int j = 0; j < Fluid.HEIGHT; j++) {
-				double currentDensity = fluid.dens[Fluid.index(i, j)];
-				//
-				//				colorIndex = (int) (nColors * (currentDensity * 20 * 0.3));
-				//				System.out.println(currentDensity);
-				//				if (colorIndex < 0) {
-				//					colorIndex = 0;
-				//				}
-				//				if (colorIndex >= nColors) {
-				//					colorIndex = nColors - 1;
-				//				}
-				colorIndex = Color.HSBtoRGB((float) 0, (float) 0, (float) currentDensity);
-				colorCell(i, j, colorIndex);
-			}
-		}
-
-		frame.invalidate();
-		frame.validate();
-		frame.repaint();
+		window.render(this);
 	}
 
 	private static double nanosToSeconds(long nanos) {
@@ -153,14 +106,29 @@ public class FluidSimulation extends JComponent implements Runnable {
 		return (long) (seconds * 1E3);
 	}
 
-	public void colorCell(int i, int j, int RGB) {
-		// from (3i, 3j) -> (3i+2,3j+2)
-		for (int x = 0; x < FluidSimulation.PPGS; x++) {
-			for (int y = 0; y < FluidSimulation.PPGS; y++) {
-				bufferedImage.setRGB(PPGS * i + x, PPGS * j + y, RGB);
-			}
-		}
-	}
 }
-
-
+//
+//	int colorIndex;
+//		for(int i=0;i<Fluid.WIDTH;i++){
+//		for(int j=0;j<Fluid.HEIGHT;j++){
+//		double currentDensity=fluid.dens[Fluid.index(i,j)];
+//
+//		colorIndex=(int)(nColors*(currentDensity*20*0.3));
+//		System.out.println(currentDensity);
+//		if(colorIndex< 0){
+//		colorIndex=0;
+//		}
+//		if(colorIndex>=nColors){
+//		colorIndex=nColors-1;
+//		}
+//		colorIndex=Color.HSBtoRGB((float)0,(float)0,(float)currentDensity);
+//		colorCell(i,j,colorIndex);
+//		}
+//		}
+//
+//		if (mouseHandler.mouseDragged) {
+//			addDensity(mouseHandler.x, mouseHandler.y, 10);
+//			double amountX = mouseHandler.x - mouseHandler.px;
+//			double amountY = mouseHandler.y - mouseHandler.py;
+//			addVelocity(mouseHandler.x, mouseHandler.y, amountX, amountY);
+//		}
